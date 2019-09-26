@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:meta/meta.dart';
 import 'package:googleapis/drive/v3.dart' as google;
 import "package:googleapis_auth/auth_io.dart" as google;
 import 'package:localization_sheets/storage.dart';
@@ -74,11 +75,10 @@ bool isLanguageSpecifier(String h) {
   return h.length == 2 || h.length == 5 && h[2] == '-';
 }
 
-void saveArb(SpreadsheetDecoder data) {
+Iterable<LocalizationsTable> buildMap(SpreadsheetDecoder data) sync* {
   const startColumn = 2;
   const startRow = 2;
   const keyColumn = 0;
-
   for (var name in data.tables.keys) {
     final table = data.tables[name];
     final header = table.rows[0];
@@ -107,10 +107,23 @@ void saveArb(SpreadsheetDecoder data) {
       }
     }
 
-    for (var key in map.keys) {
-      final file = File('out/' + name + '/' + key + '.arb');
+    yield LocalizationsTable(name, map);
+  }
+}
+
+void saveArb(SpreadsheetDecoder data) {
+  final tables = buildMap(data);
+
+  final fileOut = File('out');
+  if (fileOut.existsSync()) {
+    File('out').deleteSync(recursive: true);
+  }
+
+  for (var table in tables) {
+    for (var key in table.map.keys) {
+      final file = File('out/' + table.name + '/' + key + '.arb');
       file.createSync(recursive: true);
-      final Map<String, String> langMap = map[key];
+      final Map<String, String> langMap = table.map[key];
       final encoder = JsonEncoder.withIndent('  ');
       final jsonString = encoder.convert(langMap);
       file.writeAsStringSync(jsonString);
@@ -118,10 +131,94 @@ void saveArb(SpreadsheetDecoder data) {
   }
 }
 
+void deleteOut() {
+  final fileOut = Directory('out');
+  if (fileOut.existsSync()) {
+    File('out').deleteSync(recursive: true);
+  }
+}
+
+enum ExportFormat { arb, strings }
+
+class Config {
+  final Map<String, String> nameMap;
+  final List<String> skipLanguages;
+  final ExportFormat format;
+  final String outputPath;
+  final String id;
+
+  Config({
+    @required this.nameMap,
+    @required this.skipLanguages,
+    @required this.format,
+    @required this.outputPath,
+    @required this.id,
+  });
+}
+
+void saveStrings(SpreadsheetDecoder data, Config config) {
+  final tables = buildMap(data);
+  deleteOut();
+
+  for (var table in tables) {
+    for (var key in table.map.keys) {
+      var name = table.name;
+
+      if (config.nameMap.containsKey(name)) {
+        name = config.nameMap[name];
+        if (name == '') {
+          continue;
+        }
+      }
+
+      final file = File('out/$key.lproj/${name}.strings');
+      file.createSync(recursive: true);
+      final Map<String, String> langMap = table.map[key];
+
+      var buffer = StringBuffer();
+
+      langMap.forEach((key, value) {
+        if (value == null) {
+          return;
+        }
+        value = value.replaceAll('"', '\\"');
+        value = value.replaceAll('\n', '\\n');
+        buffer.writeln('"$key" = "$value";');
+      });
+
+      file.writeAsStringSync(buffer.toString());
+    }
+  }
+}
+
+Future<void> run(Config config) async {
+  final sheet = await loadSpreadSheet(config.id);
+
+  switch (config.format) {
+    case ExportFormat.arb:
+      saveArb(sheet);
+      break;
+    case ExportFormat.strings:
+      saveStrings(sheet, config);
+      break;
+  }
+}
+
 Future<void> main(List<String> arguments) async {
-  final id = '14AgoSbS8GVUAXz7Pg9IVxyMSm9wEBngHnPL74NjAI2c';
-  final sheet = await loadSpreadSheet(id);
-  saveArb(sheet);
+  final config = Config(
+    id: '14AgoSbS8GVUAXz7Pg9IVxyMSm9wEBngHnPL74NjAI2c',
+    outputPath: 'out',
+    skipLanguages: ['en-us'],
+    nameMap: {
+      'Translations': 'Localizable',
+      'Configuration': '',
+      'Debug': '',
+    },
+    format: ExportFormat.strings,
+  );
+
+  await run(config);
+
   exit(0);
 }
 
@@ -129,4 +226,11 @@ void prompt(String url) {
   print("Please go to the following URL and grant access:");
   print("  => $url");
   print("");
+}
+
+class LocalizationsTable {
+  final String name;
+  final Map<String, Map<String, String>> map;
+
+  LocalizationsTable(this.name, this.map);
 }
