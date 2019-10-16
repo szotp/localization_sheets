@@ -101,7 +101,10 @@ Iterable<LocalizationsTable> buildMap(SpreadsheetDecoder data) sync* {
         final String value = rowData[column];
 
         final langMap = map[language];
-        if (langMap != null && key != null && key.isNotEmpty) {
+        if (langMap != null &&
+            key != null &&
+            key.isNotEmpty &&
+            value != '!not relevant!') {
           langMap[key] = value;
         }
       }
@@ -113,17 +116,18 @@ Iterable<LocalizationsTable> buildMap(SpreadsheetDecoder data) sync* {
 
 void saveArb(SpreadsheetDecoder data) {
   final tables = buildMap(data);
-
-  final fileOut = File('out');
-  if (fileOut.existsSync()) {
-    File('out').deleteSync(recursive: true);
-  }
+  //deleteOut();
 
   for (var table in tables) {
-    for (var key in table.map.keys) {
-      final file = File('out/' + table.name + '/' + key + '.arb');
+    for (var language in table.languages) {
+      final file = File(currentConfig.outputPath +
+          '/' +
+          table.name +
+          '/' +
+          language +
+          '.arb');
       file.createSync(recursive: true);
-      final Map<String, String> langMap = table.map[key];
+      final Map<String, String> langMap = table.map[language];
       final encoder = JsonEncoder.withIndent('  ');
       final jsonString = encoder.convert(langMap);
       file.writeAsStringSync(jsonString);
@@ -132,13 +136,23 @@ void saveArb(SpreadsheetDecoder data) {
 }
 
 void deleteOut() {
-  final fileOut = Directory('out');
+  final fileOut = Directory(currentConfig.outputPath);
   if (fileOut.existsSync()) {
-    File('out').deleteSync(recursive: true);
+    File(currentConfig.outputPath).deleteSync(recursive: true);
   }
 }
 
-enum ExportFormat { arb, strings }
+enum ExportFormat { arb, strings, android }
+
+ExportFormat exportFormatFromJson(String json) {
+  for (var value in ExportFormat.values) {
+    if (value.toString() == json) {
+      return value;
+    }
+  }
+
+  throw 'unknown ExportFormat: $json';
+}
 
 class Config {
   final Map<String, String> nameMap;
@@ -154,14 +168,39 @@ class Config {
     @required this.outputPath,
     @required this.id,
   });
+
+  factory Config.fromJson(dynamic json) {
+    Map<String, String> parseMap(Map map) {
+      return map.cast<String, String>();
+    }
+
+    List<String> parseArray(List list) {
+      return list.cast<String>();
+    }
+
+    return Config(
+      nameMap: parseMap(json['nameMap']),
+      skipLanguages: parseArray(json['skipLanguages']),
+      format: exportFormatFromJson(json['exportFormat']),
+      outputPath: json['outputPath'],
+      id: json['id'],
+    );
+  }
+
+  factory Config.fromCurrentDirectory() {
+    final file = File('localizations.json');
+    final jsonString = file.readAsStringSync();
+    final jsonObject = json.decode(jsonString);
+    return Config.fromJson(jsonObject);
+  }
 }
 
 void saveStrings(SpreadsheetDecoder data, Config config) {
   final tables = buildMap(data);
-  deleteOut();
+  //deleteOut();
 
   for (var table in tables) {
-    for (var key in table.map.keys) {
+    for (var language in table.languages) {
       var name = table.name;
 
       if (config.nameMap.containsKey(name)) {
@@ -171,27 +210,41 @@ void saveStrings(SpreadsheetDecoder data, Config config) {
         }
       }
 
-      final file = File('out/$key.lproj/${name}.strings');
+      final file =
+          File(currentConfig.outputPath + '/$language.lproj/${name}.strings');
+
+      if (config.skipLanguages.contains(language)) {
+        if (file.existsSync()) {
+          file.delete();
+        }
+        continue;
+      }
+
       file.createSync(recursive: true);
-      final Map<String, String> langMap = table.map[key];
+      final Map<String, String> langMap = table.map[language];
 
       var buffer = StringBuffer();
 
-      langMap.forEach((key, value) {
+      for (var key in table.keys) {
+        var value = langMap[key];
+
         if (value == null) {
-          return;
+          continue;
         }
         value = value.replaceAll('"', '\\"');
         value = value.replaceAll('\n', '\\n');
         buffer.writeln('"$key" = "$value";');
-      });
+      }
 
       file.writeAsStringSync(buffer.toString());
     }
   }
 }
 
+Config currentConfig;
+
 Future<void> run(Config config) async {
+  currentConfig = config;
   final sheet = await loadSpreadSheet(config.id);
 
   switch (config.format) {
@@ -201,22 +254,14 @@ Future<void> run(Config config) async {
     case ExportFormat.strings:
       saveStrings(sheet, config);
       break;
+    case ExportFormat.android:
+      assert(false);
+      break;
   }
 }
 
 Future<void> main(List<String> arguments) async {
-  final config = Config(
-    id: '14AgoSbS8GVUAXz7Pg9IVxyMSm9wEBngHnPL74NjAI2c',
-    outputPath: 'out',
-    skipLanguages: ['en-us'],
-    nameMap: {
-      'Translations': 'Localizable',
-      'Configuration': '',
-      'Debug': '',
-    },
-    format: ExportFormat.strings,
-  );
-
+  final config = Config.fromCurrentDirectory();
   await run(config);
 
   exit(0);
@@ -228,9 +273,28 @@ void prompt(String url) {
   print("");
 }
 
+List<String> getKeys(Iterable<String> keys) {
+  final r = keys.toList().reversed.toList();
+  return r;
+}
+
 class LocalizationsTable {
   final String name;
   final Map<String, Map<String, String>> map;
 
-  LocalizationsTable(this.name, this.map);
+  Iterable<String> get languages => map.keys;
+
+  LocalizationsTable(this.name, this.map) : keys = _getKeys(map);
+
+  static List<String> _getKeys(Map<String, Map<String, String>> map) {
+    final english = map['en'];
+    if (english == null) {
+      return [];
+    }
+
+    final result = english.keys.toList()..sort(compareAsciiLowerCase);
+    return result;
+  }
+
+  final List<String> keys;
 }
