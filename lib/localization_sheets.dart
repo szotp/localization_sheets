@@ -9,6 +9,7 @@ import 'package:localization_sheets/storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:collection/collection.dart';
 import 'package:spreadsheet_decoder/spreadsheet_decoder.dart';
+import 'package:yaml/yaml.dart';
 
 Future<google.AutoRefreshingAuthClient> obtainClient() async {
   final id = google.ClientId(
@@ -48,6 +49,7 @@ Future<SpreadsheetDecoder> loadSpreadSheet(String fileId) async {
     return SpreadsheetDecoder.decodeBytes(bytes);
   }
 
+  print('Downloading spreadsheet...');
   final google.Media media = await api.files.export(
     fileId,
     'application/x-vnd.oasis.opendocument.spreadsheet',
@@ -195,9 +197,20 @@ class Config {
 
   factory Config.fromCurrentDirectory() {
     final file = File('localizations.json');
-    final jsonString = file.readAsStringSync();
-    final jsonObject = json.decode(jsonString);
-    return Config.fromJson(jsonObject);
+
+    dynamic object;
+
+    if (file.existsSync()) {
+      final jsonString = file.readAsStringSync();
+      object = json.decode(jsonString);
+    } else {
+      final pubspec = File('pubspec.yaml');
+      final pubspecString = pubspec.readAsStringSync();
+      final pubspecYaml = loadYaml(pubspecString) as YamlMap;
+      object = pubspecYaml['localization_sheets'];
+    }
+
+    return Config.fromJson(object);
   }
 }
 
@@ -250,21 +263,24 @@ void saveStrings(SpreadsheetDecoder data, Config config) {
 Config currentConfig;
 
 Future<void> run(Config config) async {
-  config.skipCache = false;
   currentConfig = config;
   final sheet = await loadSpreadSheet(config.id);
 
   switch (config.format) {
     case ExportFormat.arb:
+      print('Generating arb files...');
       saveArb(sheet);
       break;
     case ExportFormat.strings:
+      print('Generating iOS strings...');
       saveStrings(sheet, config);
       break;
     case ExportFormat.android:
       assert(false);
       break;
   }
+
+  print('Generated.');
 }
 
 void prompt(String url) {

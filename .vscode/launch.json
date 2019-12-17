@@ -9,6 +9,12 @@
             "program": "bin/localization_sheets.dart",
             "request": "launch",
             "type": "dart"
+        },
+        {
+            "name": "Custom",
+            "program": "bin/custom.dart",
+            "request": "launch",
+            "type": "dart"
         }
     ]
 }
