@@ -189,6 +189,7 @@ class Config {
       format: exportFormatFromJson(json['exportFormat']),
       outputPath: json['outputPath'],
       id: json['id'],
+      skipCache: json['skipCache'] ?? false,
     );
   }
 
