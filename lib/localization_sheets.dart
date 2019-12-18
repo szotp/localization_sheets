@@ -41,9 +41,17 @@ Future<SpreadsheetDecoder> loadSpreadSheet(String fileId) async {
 
   final file = File(getHomePath() + '/' + meta.name + '.ods');
 
+  var skipCache = currentConfig.skipCache;
+
+  assert(() {
+    //we usually want to skip cache when changing the script
+    skipCache = true;
+    return true;
+  }());
+
   if (file.existsSync() &&
       file.lastModifiedSync().isAfter(meta.modifiedTime) &&
-      (!currentConfig.skipCache || true)) {
+      !skipCache) {
     print('Using cached file...');
     final bytes = file.readAsBytesSync();
     return SpreadsheetDecoder.decodeBytes(bytes);
