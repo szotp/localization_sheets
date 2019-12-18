@@ -122,7 +122,7 @@ Iterable<LocalizationsTable> buildMap(SpreadsheetDecoder data) sync* {
       final String key = rowData[keyColumn];
 
       for (int column = startColumn; column < table.maxCols; column++) {
-        final String language = header[column];
+        final String language = header[column].trim();
         final String value = rowData[column];
 
         final langMap = map[language];
