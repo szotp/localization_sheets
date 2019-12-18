@@ -43,7 +43,7 @@ Future<SpreadsheetDecoder> loadSpreadSheet(String fileId) async {
 
   if (file.existsSync() &&
       file.lastModifiedSync().isAfter(meta.modifiedTime) &&
-      !currentConfig.skipCache) {
+      (!currentConfig.skipCache || true)) {
     print('Using cached file...');
     final bytes = file.readAsBytesSync();
     return SpreadsheetDecoder.decodeBytes(bytes);
@@ -80,6 +80,18 @@ bool isLanguageSpecifier(String h) {
   return h.length == 2 || h.length == 5 && h[2] == '-';
 }
 
+final regexSnakeCaseToCamelCase = RegExp(r'\..');
+
+String convertKey(String key) {
+  if (!currentConfig.snakeCaseToCamelCase) {
+    return key;
+  }
+
+  return key.replaceAllMapped(regexSnakeCaseToCamelCase, (x) {
+    return x.group(0)[1].toUpperCase();
+  });
+}
+
 Iterable<LocalizationsTable> buildMap(SpreadsheetDecoder data) sync* {
   const startColumn = 2;
   const startRow = 2;
@@ -91,7 +103,7 @@ Iterable<LocalizationsTable> buildMap(SpreadsheetDecoder data) sync* {
     Map<String, Map<String, String>> map = {};
 
     for (int column = startColumn; column < table.maxCols; column++) {
-      final h = header[column];
+      final h = header[column].toString().trim();
       if (isLanguageSpecifier(h)) {
         map[h] = {};
       }
@@ -110,7 +122,7 @@ Iterable<LocalizationsTable> buildMap(SpreadsheetDecoder data) sync* {
             key != null &&
             key.isNotEmpty &&
             value != '!not relevant!') {
-          langMap[key] = value;
+          langMap[convertKey(key)] = value;
         }
       }
     }
@@ -166,15 +178,16 @@ class Config {
   String outputPath;
   String id;
   bool skipCache;
+  bool snakeCaseToCamelCase;
 
-  Config({
-    @required this.nameMap,
-    @required this.skipLanguages,
-    @required this.format,
-    @required this.outputPath,
-    @required this.id,
-    this.skipCache = false,
-  });
+  Config(
+      {@required this.nameMap,
+      @required this.skipLanguages,
+      @required this.format,
+      @required this.outputPath,
+      @required this.id,
+      this.skipCache,
+      this.snakeCaseToCamelCase});
 
   factory Config.fromJson(dynamic json) {
     Map<String, String> parseMap(Map map) {
@@ -192,6 +205,7 @@ class Config {
       outputPath: json['outputPath'],
       id: json['id'],
       skipCache: json['skipCache'] ?? false,
+      snakeCaseToCamelCase: json['snakeCaseToCamelCase'] ?? false,
     );
   }
 
