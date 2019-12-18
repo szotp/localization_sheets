@@ -45,7 +45,7 @@ Future<SpreadsheetDecoder> loadSpreadSheet(String fileId) async {
 
   assert(() {
     //we usually want to skip cache when changing the script
-    skipCache = true;
+    skipCache = false;
     return true;
   }());
 
