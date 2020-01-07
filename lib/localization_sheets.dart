@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -101,19 +102,19 @@ String convertKey(String key) {
 }
 
 Iterable<LocalizationsTable> buildMap(SpreadsheetDecoder data) sync* {
-  const startColumn = 2;
-  const startRow = 2;
+  final startColumn = currentConfig.headerColumns;
+  final startRow = currentConfig.headerRows;
   const keyColumn = 0;
   for (var name in data.tables.keys) {
     final table = data.tables[name];
     final header = table.rows[0];
 
-    Map<String, Map<String, String>> map = {};
+    Map<String, SplayTreeMap<String, String>> map = {};
 
     for (int column = startColumn; column < table.maxCols; column++) {
       final h = header[column].toString().trim();
       if (isLanguageSpecifier(h)) {
-        map[h] = {};
+        map[h] = SplayTreeMap();
       }
     }
 
@@ -187,15 +188,20 @@ class Config {
   String id;
   bool skipCache;
   bool snakeCaseToCamelCase;
+  int headerRows;
+  int headerColumns;
 
-  Config(
-      {@required this.nameMap,
-      @required this.skipLanguages,
-      @required this.format,
-      @required this.outputPath,
-      @required this.id,
-      this.skipCache,
-      this.snakeCaseToCamelCase});
+  Config({
+    @required this.nameMap,
+    @required this.skipLanguages,
+    @required this.format,
+    @required this.outputPath,
+    @required this.id,
+    this.skipCache,
+    this.snakeCaseToCamelCase,
+    this.headerRows,
+    this.headerColumns,
+  });
 
   factory Config.fromJson(dynamic json) {
     Map<String, String> parseMap(Map map) {
@@ -214,6 +220,8 @@ class Config {
       id: json['id'],
       skipCache: json['skipCache'] ?? false,
       snakeCaseToCamelCase: json['snakeCaseToCamelCase'] ?? false,
+      headerRows: json['headerRows'] ?? 2,
+      headerColumns: json['headerColumns'] ?? 2,
     );
   }
 
@@ -318,7 +326,7 @@ List<String> getKeys(Iterable<String> keys) {
 
 class LocalizationsTable {
   final String name;
-  final Map<String, Map<String, String>> map;
+  final Map<String, SplayTreeMap<String, String>> map;
 
   Iterable<String> get languages => map.keys;
 
