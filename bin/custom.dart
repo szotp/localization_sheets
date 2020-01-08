@@ -1,8 +1,10 @@
 import 'dart:io';
 
-import 'localization_sheets.dart' as m;
+import 'package:localization_sheets/localization_sheets.dart';
 
-void main() {
-  Directory.current = '/Users/pszot/Documents/projects/siemens-pebbles-flutter';
-  m.main(null);
+Future<void> main() async {
+  Directory.current = '/Users/pszot/Documents/projects/messefrankfurt-ios';
+  final config = Config.fromCurrentDirectory();
+  config.skipCache = true;
+  await run(config);
 }

@@ -123,7 +123,7 @@ Iterable<LocalizationsTable> buildMap(SpreadsheetDecoder data) sync* {
       final String key = rowData[keyColumn];
 
       for (int column = startColumn; column < table.maxCols; column++) {
-        final String language = header[column].trim();
+        final String language = header[column]?.trim();
         final String value = rowData[column];
 
         final langMap = map[language];
@@ -153,7 +153,7 @@ void saveArb(SpreadsheetDecoder data) {
           language +
           '.arb');
       file.createSync(recursive: true);
-      final Map<String, String> langMap = table.map[language];
+      final Map<String, String> langMap = table.mapForSerialization(language);
       final encoder = JsonEncoder.withIndent('  ');
       final jsonString = encoder.convert(langMap);
       file.writeAsStringSync(jsonString);
@@ -244,21 +244,50 @@ class Config {
   }
 }
 
+void validatePlaceholders(LocalizationsTable table, Config config) {
+  int countPlaceholders(String value) {
+    return RegExp('%.').allMatches(value).length;
+  }
+
+  for (var key in table.keys) {
+    final entries = table.languages
+        .where((lang) => !config.skipLanguages.contains(lang))
+        .map((lang) => MapEntry(lang, table.getString(lang, key)))
+        .toList();
+
+    final expected = countPlaceholders(table.getString('en', key));
+
+    for (var entry in entries) {
+      if (entry.value == null) {
+        print('Missing value for $key.${entry.key}');
+        continue;
+      }
+
+      final got = countPlaceholders(entry.value);
+      if (got != expected) {
+        print('placeholder error: $got/$expected, $key.${entry.key}');
+      }
+    }
+  }
+}
+
 void saveStrings(SpreadsheetDecoder data, Config config) {
   final tables = buildMap(data);
   //deleteOut();
 
   for (var table in tables) {
-    for (var language in table.languages) {
-      var name = table.name;
+    var name = table.name;
 
-      if (config.nameMap.containsKey(name)) {
-        name = config.nameMap[name];
-        if (name == '') {
-          continue;
-        }
+    if (config.nameMap.containsKey(name)) {
+      name = config.nameMap[name];
+      if (name == '') {
+        continue;
       }
+    }
 
+    validatePlaceholders(table, config);
+
+    for (var language in table.languages) {
       final file =
           File(currentConfig.outputPath + '/$language.lproj/${name}.strings');
 
@@ -270,18 +299,20 @@ void saveStrings(SpreadsheetDecoder data, Config config) {
       }
 
       file.createSync(recursive: true);
-      final Map<String, String> langMap = table.map[language];
 
       var buffer = StringBuffer();
 
       for (var key in table.keys) {
-        var value = langMap[key];
+        var value = table.getString(language, key);
 
         if (value == null) {
           continue;
         }
         value = value.replaceAll('"', '\\"');
+        value = value.replaceAll('\\n\n', '\n');
         value = value.replaceAll('\n', '\\n');
+        value = value.replaceAll('\n', '\\n');
+        value = value.replaceAll('\\\\', '\\');
         buffer.writeln('"$key" = "$value";');
       }
 
@@ -326,11 +357,11 @@ List<String> getKeys(Iterable<String> keys) {
 
 class LocalizationsTable {
   final String name;
-  final Map<String, SplayTreeMap<String, String>> map;
+  final Map<String, SplayTreeMap<String, String>> _map;
 
-  Iterable<String> get languages => map.keys;
+  Iterable<String> get languages => _map.keys;
 
-  LocalizationsTable(this.name, this.map) : keys = _getKeys(map);
+  LocalizationsTable(this.name, this._map) : keys = _getKeys(_map);
 
   static List<String> _getKeys(Map<String, Map<String, String>> map) {
     final english = map['en'];
@@ -338,9 +369,28 @@ class LocalizationsTable {
       return [];
     }
 
-    final result = english.keys.toList()..sort(compareAsciiLowerCase);
+    final result = english.keys.toList()..sort(customCompare);
     return result;
   }
 
   final List<String> keys;
+
+  Map<String, String> mapForSerialization(String language) => _map[language];
+
+  String getString(String language, String key, [bool provideFallback = true]) {
+    final result = _map[language][key];
+    if (result != null) {
+      return result;
+    } else if (provideFallback) {
+      return _map['en'][key] ?? '';
+    } else {
+      return null;
+    }
+  }
+}
+
+/// compareAsciiLowerCase, but _ is before .
+int customCompare(String lhs, String rhs) {
+  return compareAsciiLowerCase(
+      lhs.replaceAll('_', '-'), rhs.replaceAll('_', '-'));
 }
