@@ -1,4 +1,4 @@
-A sample command-line application.
+A tool to import translations into native iOS or Flutter app.
 
 # Usage
 
