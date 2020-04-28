@@ -9,3 +9,16 @@ A tool to import translations into native iOS or Flutter app.
 3. Run `localization_sheets`.
 4. If running for the first time: tool will ask you to open URL and grant some permissions.
 5. Commit the changes if needed.
+
+
+# custom.dart
+```dart
+import 'dart:io';
+
+import 'localization_sheets.dart' as other;
+
+void main(List<String> arguments) {
+  Directory.current = '<CURRENT>';
+  other.main(arguments);
+}
+```

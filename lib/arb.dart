@@ -17,7 +17,7 @@ void parseArb() {
 
           for (var key in dict.keys) {
             final value = dict[key].toString().replaceAll('\n', '\\n');
-            print(key + '\t' + value);
+            print('$key\t$value');
           }
         }
       }

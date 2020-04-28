@@ -3,14 +3,16 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:localization_sheets/arb.dart';
 import 'package:meta/meta.dart';
 import 'package:googleapis/drive/v3.dart' as google;
-import "package:googleapis_auth/auth_io.dart" as google;
+import 'package:googleapis_auth/auth_io.dart' as google;
 import 'package:localization_sheets/storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:collection/collection.dart';
 import 'package:spreadsheet_decoder/spreadsheet_decoder.dart';
 import 'package:yaml/yaml.dart';
+import 'package:path/path.dart' as p;
 
 Future<google.AutoRefreshingAuthClient> obtainClient() async {
   final id = google.ClientId(
@@ -20,10 +22,10 @@ Future<google.AutoRefreshingAuthClient> obtainClient() async {
 
   final scopes = <String>['https://www.googleapis.com/auth/drive.readonly'];
 
-  google.AccessCredentials credentials = await loadCredentials();
+  final google.AccessCredentials credentials = loadCredentials();
 
   if (credentials != null &&
-      ListEquality().equals(scopes, credentials.scopes)) {
+      const ListEquality().equals(scopes, credentials.scopes)) {
     return google.autoRefreshingClient(id, credentials, http.Client());
   }
 
@@ -38,9 +40,9 @@ Future<SpreadsheetDecoder> loadSpreadSheet(String fileId) async {
   final api = google.DriveApi(client);
 
   final google.File meta =
-      await api.files.get(fileId, $fields: 'modifiedTime, name');
+      await api.files.get(fileId, $fields: 'modifiedTime, name') as google.File;
 
-  final file = File(getHomePath() + '/' + meta.name + '.ods');
+  final file = File('${getHomePath()}/${meta.name}.ods');
 
   var skipCache = currentConfig.skipCache;
 
@@ -63,7 +65,7 @@ Future<SpreadsheetDecoder> loadSpreadSheet(String fileId) async {
     fileId,
     'application/x-vnd.oasis.opendocument.spreadsheet',
     downloadOptions: google.DownloadOptions.FullMedia,
-  );
+  ) as google.Media;
 
   final bytes = Uint8List(media.length);
   int i = 0;
@@ -75,7 +77,7 @@ Future<SpreadsheetDecoder> loadSpreadSheet(String fileId) async {
   });
 
   file.writeAsBytesSync(bytes);
-  file.setLastModifiedSync(meta.modifiedTime.add(Duration(seconds: 1)));
+  file.setLastModifiedSync(meta.modifiedTime.add(const Duration(seconds: 1)));
 
   assert(bytes.lengthInBytes == media.length);
   client.close();
@@ -89,27 +91,42 @@ bool isLanguageSpecifier(String h) {
   return h.length == 2 || h.length == 5 && h[2] == '-';
 }
 
-final regexSnakeCaseToCamelCase = RegExp(r'\..');
+final _regexSnakeCaseToCamelCase = RegExp(r'\..');
 
 String convertKey(String key) {
   if (!currentConfig.snakeCaseToCamelCase) {
     return key;
   }
 
-  return key.replaceAllMapped(regexSnakeCaseToCamelCase, (x) {
+  return key.replaceAllMapped(_regexSnakeCaseToCamelCase, (x) {
     return x.group(0)[1].toUpperCase();
   });
 }
 
 Iterable<LocalizationsTable> buildMap(SpreadsheetDecoder data) sync* {
-  final startColumn = currentConfig.headerColumns;
-  final startRow = currentConfig.headerRows;
+  final config = currentConfig;
+
+  final startColumn = config.headerColumns;
+  final startRow = config.headerRows;
   const keyColumn = 0;
   for (var name in data.tables.keys) {
+    if (config.nameMap.containsKey(name)) {
+      name = config.nameMap[name];
+      if (name == '') {
+        continue;
+      }
+    }
+
+    if (config.sheets?.isNotEmpty == true) {
+      if (!config.sheets.contains(name)) {
+        continue;
+      }
+    }
+
     final table = data.tables[name];
     final header = table.rows[0];
 
-    Map<String, SplayTreeMap<String, String>> map = {};
+    final Map<String, SplayTreeMap<String, String>> map = {};
 
     for (int column = startColumn; column < table.maxCols; column++) {
       final h = header[column].toString().trim();
@@ -120,11 +137,11 @@ Iterable<LocalizationsTable> buildMap(SpreadsheetDecoder data) sync* {
 
     for (int row = startRow; row < table.maxRows; row++) {
       final rowData = table.rows[row];
-      final String key = rowData[keyColumn]?.trim();
+      final String key = (rowData[keyColumn] as String)?.trim();
 
       for (int column = startColumn; column < table.maxCols; column++) {
-        final String language = header[column]?.trim();
-        final String value = rowData[column];
+        final String language = (header[column] as String)?.trim();
+        final String value = rowData[column] as String;
 
         final langMap = map[language];
         if (langMap != null &&
@@ -141,20 +158,20 @@ Iterable<LocalizationsTable> buildMap(SpreadsheetDecoder data) sync* {
 }
 
 void saveArb(SpreadsheetDecoder data) {
-  final tables = buildMap(data);
+  final tables = buildMap(data).toList();
   //deleteOut();
 
   for (var table in tables) {
     for (var language in table.languages) {
-      final file = File(currentConfig.outputPath +
-          '/' +
-          table.name +
-          '/' +
-          language +
-          '.arb');
+      String path = currentConfig.outputPath;
+
+      path = p.join(path, table.name);
+      path = p.join(path, '$language.arb');
+
+      final file = File(path);
       file.createSync(recursive: true);
       final Map<String, String> langMap = table.mapForSerialization(language);
-      final encoder = JsonEncoder.withIndent('  ');
+      const encoder = JsonEncoder.withIndent('  ');
       final jsonString = encoder.convert(langMap);
       file.writeAsStringSync(jsonString);
     }
@@ -190,6 +207,7 @@ class Config {
   bool snakeCaseToCamelCase;
   int headerRows;
   int headerColumns;
+  List<String> sheets;
 
   Config({
     @required this.nameMap,
@@ -201,6 +219,7 @@ class Config {
     this.snakeCaseToCamelCase,
     this.headerRows,
     this.headerColumns,
+    this.sheets,
   });
 
   factory Config.fromJson(dynamic json) {
@@ -213,15 +232,16 @@ class Config {
     }
 
     return Config(
-      nameMap: parseMap(json['nameMap']),
-      skipLanguages: parseArray(json['skipLanguages']),
-      format: exportFormatFromJson(json['exportFormat']),
-      outputPath: json['outputPath'],
-      id: json['id'],
-      skipCache: json['skipCache'] ?? false,
-      snakeCaseToCamelCase: json['snakeCaseToCamelCase'] ?? false,
-      headerRows: json['headerRows'] ?? 2,
-      headerColumns: json['headerColumns'] ?? 2,
+      nameMap: parseMap(json['nameMap'] as Map),
+      skipLanguages: parseArray(json['skipLanguages'] as List),
+      format: exportFormatFromJson(json['exportFormat'] as String),
+      outputPath: json['outputPath'] as String,
+      id: json['id'] as String,
+      skipCache: json['skipCache'] as bool ?? false,
+      snakeCaseToCamelCase: json['snakeCaseToCamelCase'] as bool ?? false,
+      headerRows: json['headerRows'] as int ?? 2,
+      headerColumns: json['headerColumns'] as int ?? 2,
+      sheets: parseArray(json['sheets'] as List),
     );
   }
 
@@ -276,20 +296,12 @@ void saveStrings(SpreadsheetDecoder data, Config config) {
   //deleteOut();
 
   for (var table in tables) {
-    var name = table.name;
-
-    if (config.nameMap.containsKey(name)) {
-      name = config.nameMap[name];
-      if (name == '') {
-        continue;
-      }
-    }
-
     validatePlaceholders(table, config);
 
     for (var language in table.languages) {
+      final name = table.name;
       final file =
-          File(currentConfig.outputPath + '/$language.lproj/${name}.strings');
+          File('${currentConfig.outputPath}/$language.lproj/$name.strings');
 
       if (config.skipLanguages.contains(language)) {
         if (file.existsSync()) {
@@ -300,7 +312,7 @@ void saveStrings(SpreadsheetDecoder data, Config config) {
 
       file.createSync(recursive: true);
 
-      var buffer = StringBuffer();
+      final buffer = StringBuffer();
 
       for (var key in table.keys) {
         var value = table.getString(language, key);
@@ -345,7 +357,7 @@ Future<void> run(Config config) async {
 }
 
 void prompt(String url) {
-  print("Please go to the following URL and grant access:");
+  print('Please go to the following URL and grant access:');
   print("  => $url");
   print("");
 }
@@ -377,7 +389,7 @@ class LocalizationsTable {
 
   Map<String, String> mapForSerialization(String language) => _map[language];
 
-  String getString(String language, String key, [bool provideFallback = true]) {
+  String getString(String language, String key, {bool provideFallback = true}) {
     final result = _map[language][key];
     if (result != null) {
       return result;

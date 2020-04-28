@@ -4,7 +4,7 @@ import "package:googleapis_auth/auth_io.dart" as google;
 
 String getHomePath() {
   String home = "";
-  Map<String, String> envVars = Platform.environment;
+  final Map<String, String> envVars = Platform.environment;
   if (Platform.isMacOS) {
     home = envVars['HOME'];
   } else if (Platform.isLinux) {
@@ -13,11 +13,11 @@ String getHomePath() {
     home = envVars['UserProfile'];
   }
 
-  return home + '/.localization_sheets';
+  return '$home/.localization_sheets';
 }
 
 File _getTokenFile() {
-  final x = getHomePath() + "/token.json";
+  final x = "${getHomePath()}/token.json";
   return File(x);
 }
 
@@ -46,15 +46,15 @@ google.AccessCredentials loadCredentials() {
   final js = json.decode(jsonString);
 
   final token = google.AccessToken(
-    js['accessToken.type'],
-    js['accessToken.data'],
-    DateTime.parse(js['accessToken.expiry']),
+    js['accessToken.type'] as String,
+    js['accessToken.data'] as String,
+    DateTime.parse(js['accessToken.expiry'] as String),
   );
 
   return google.AccessCredentials(
     token,
-    js['refreshToken'],
-    List<String>.from(js['scopes']),
-    idToken: js['idToken'],
+    js['refreshToken'] as String,
+    List<String>.from(js['scopes'] as List),
+    idToken: js['idToken'] as String,
   );
 }
