@@ -110,13 +110,6 @@ Iterable<LocalizationsTable> buildMap(SpreadsheetDecoder data) sync* {
   final startRow = config.headerRows;
   const keyColumn = 0;
   for (var name in data.tables.keys) {
-    if (config.nameMap.containsKey(name)) {
-      name = config.nameMap[name];
-      if (name == '') {
-        continue;
-      }
-    }
-
     if (config.sheets?.isNotEmpty == true) {
       if (!config.sheets.contains(name)) {
         continue;
@@ -124,6 +117,14 @@ Iterable<LocalizationsTable> buildMap(SpreadsheetDecoder data) sync* {
     }
 
     final table = data.tables[name];
+
+    if (config.nameMap.containsKey(name)) {
+      name = config.nameMap[name];
+      if (name == '') {
+        continue;
+      }
+    }
+
     final header = table.rows[0];
 
     final Map<String, SplayTreeMap<String, String>> map = {};
@@ -174,6 +175,8 @@ void saveArb(SpreadsheetDecoder data) {
       const encoder = JsonEncoder.withIndent('  ');
       final jsonString = encoder.convert(langMap);
       file.writeAsStringSync(jsonString);
+
+      print('Writing $file');
     }
   }
 }
