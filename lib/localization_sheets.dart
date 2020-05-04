@@ -91,16 +91,18 @@ bool isLanguageSpecifier(String h) {
   return h.length == 2 || h.length == 5 && h[2] == '-';
 }
 
-final _regexSnakeCaseToCamelCase = RegExp(r'\..');
+final _regexSnakeCaseToCamelCase = RegExp(r'[\._].');
 
 String convertKey(String key) {
   if (!currentConfig.snakeCaseToCamelCase) {
     return key;
   }
 
-  return key.replaceAllMapped(_regexSnakeCaseToCamelCase, (x) {
+  final result = key.replaceAllMapped(_regexSnakeCaseToCamelCase, (x) {
     return x.group(0)[1].toUpperCase();
   });
+
+  return result.replaceRange(0, 1, result[0].toLowerCase());
 }
 
 Iterable<LocalizationsTable> buildMap(SpreadsheetDecoder data) sync* {
