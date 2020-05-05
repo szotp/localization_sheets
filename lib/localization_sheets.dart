@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:localization_sheets/arb.dart';
 import 'package:meta/meta.dart';
 import 'package:googleapis/drive/v3.dart' as google;
 import 'package:googleapis_auth/auth_io.dart' as google;
@@ -156,6 +155,25 @@ Iterable<LocalizationsTable> buildMap(SpreadsheetDecoder data) sync* {
       }
     }
 
+    if (currentConfig.languageForDefaults != null) {
+      final defaults = map[currentConfig.languageForDefaults];
+
+      for (final mapForLanguage in map.values) {
+        if (mapForLanguage == defaults) {
+          continue;
+        }
+
+        final nulls = mapForLanguage.entries
+            .where((x) => x.value == null)
+            .map((x) => x.key)
+            .toList();
+
+        for (final key in nulls) {
+          mapForLanguage[key] = defaults[key];
+        }
+      }
+    }
+
     yield LocalizationsTable(name, map);
   }
 }
@@ -213,6 +231,7 @@ class Config {
   int headerRows;
   int headerColumns;
   List<String> sheets;
+  String languageForDefaults;
 
   Config({
     @required this.nameMap,
@@ -225,6 +244,7 @@ class Config {
     this.headerRows,
     this.headerColumns,
     this.sheets,
+    this.languageForDefaults,
   });
 
   factory Config.fromJson(dynamic json) {
@@ -247,6 +267,7 @@ class Config {
       headerRows: json['headerRows'] as int ?? 2,
       headerColumns: json['headerColumns'] as int ?? 2,
       sheets: parseArray(json['sheets'] as List),
+      languageForDefaults: json['languageForDefaults'] as String,
     );
   }
 
