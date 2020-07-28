@@ -5,7 +5,7 @@ A tool to import translations into native iOS or Flutter app.
 1. Run command `pub global activate -sgit https://github.com/szotp/localization_sheets`.
 2. Ensure that pub cache and dart path was added to PATH:
 ```sh
-; only works if you installed flutter in your $HOME
+# only works if you installed flutter in your $HOME
 export PATH=$PATH:$HOME/flutter/.pub-cache/bin
 export PATH=$PATH:$HOME/flutter/bin/cache/dart-sdk/bin 
 ```
