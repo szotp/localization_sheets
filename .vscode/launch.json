@@ -5,6 +5,12 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Test",
+            "type": "dart",
+            "request": "launch",
+            "program": "./test/"
+        },
+        {
             "name": "Dart",
             "program": "bin/localization_sheets.dart",
             "request": "launch",
@@ -15,6 +21,6 @@
             "program": "bin/custom.dart",
             "request": "launch",
             "type": "dart"
-        }
+        },
     ]
 }

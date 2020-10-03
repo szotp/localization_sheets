@@ -1,33 +1,19 @@
-import 'dart:convert';
 import 'dart:io';
-import 'package:path/path.dart' as p;
 
 import 'package:arb/dart_arb.dart';
 import 'package:recase/recase.dart';
+import 'arb.dart';
+import 'file_ext.dart';
 
-extension FileSystemEntityExt on FileSystemEntity {
-  String get basename => p.basename(path);
-  String get basenameWithoutExtension => p.basenameWithoutExtension(path);
-  String get extension => p.extension(path);
+import 'insert_descriptions.dart';
+
+void stringsToArb(File template, Directory targetDirectory) {
+  final project = parseStrings(template.path);
+  insertDescriptions(project);
+  saveProject(project, targetDirectory);
 }
 
-extension FileExt on File {
-  File replacingExtension(String extension) {
-    return File(p.setExtension(path, extension));
-  }
-
-  File replacingName(String name) {
-    return File(p.join(parent.path, name));
-  }
-}
-
-extension DirectoryExt on Directory {
-  File childFile(String basename) => File(p.join(path, basename));
-  Directory childDirectory(String basename) =>
-      Directory(p.join(path, basename));
-}
-
-final placeholders = RegExp(r'%[@dfs]');
+final placeholdersRegex = RegExp(r'%[@dfs]');
 final forbidden = RegExp('[!(){};\'\",:&#]');
 
 ArbDocument _parseArbDocument(File file, String language) {
@@ -62,26 +48,31 @@ ArbDocument _parseArbDocument(File file, String language) {
       continue;
     }
 
-    var key = doc.popString(delimiter);
+    final key = doc.popString(delimiter);
     doc.popWhitespace();
     doc.popExpecting('=');
     doc.popWhitespace();
 
-    var value = doc.popString(delimiter);
-
-    key = sanitizeKey(key);
-    value = sanitizeValue(value);
+    final value = doc.popString(delimiter);
 
     doc.popExpecting(';');
-    resources[key] = ArbResource(key, value);
+    resources[key] = _parseResouce(key, value);
   }
 
   return ArbDocument(language, resources: resources);
 }
 
-String sanitizeValue(String valuep) {
-  int index = 1;
-  return valuep.replaceAllMapped(placeholders, (x) => '{arg${index++}}');
+ArbResource _parseResouce(String key, String value) {
+  int placeholders = 0;
+  final sanitizedValue = value.replaceAllMapped(placeholdersRegex, (x) {
+    return '{arg${placeholders++}}';
+  });
+
+  final result = ArbResource(sanitizeKey(key), sanitizedValue);
+  result.attributes['placeholders'] = <String, Map>{
+    for (final p in result.value.placeholders) p.name: {}
+  };
+  return result;
 }
 
 String sanitizeKey(String keyp) {
@@ -90,7 +81,7 @@ String sanitizeKey(String keyp) {
   const items = 'XYZXYZ';
   int index = 0;
 
-  key = key.replaceAllMapped(placeholders, (x) => items[index++]);
+  key = key.replaceAllMapped(placeholdersRegex, (x) => items[index++]);
   key = key.replaceAll(forbidden, '_');
   key = key.replaceAll('\"', '_');
   key = key.camelCase;
@@ -120,7 +111,7 @@ ArbProject parseStrings(String templateFile) {
   return ArbProject(
     file.basename,
     documents: docs,
-  );
+  )..defaultTemplate = file.parent.basenameWithoutExtension;
 }
 
 class StringEnumerator {
@@ -207,21 +198,5 @@ class StringEnumerator {
 
     popExpecting(delimiter);
     return buffer.toString();
-  }
-}
-
-void stringsToArb(File template, Directory targetDirectory) {
-  final results = parseStrings(template.path);
-
-  for (final doc in results.documents) {
-    final sortedKeys = doc.resources.keys.toList();
-    sortedKeys.sort();
-    final json = {
-      for (final key in sortedKeys) key: doc.resources[key].value.text,
-    };
-
-    final targetFile = targetDirectory.childFile('${doc.locale}.arb');
-    const encoder = JsonEncoder.withIndent('  ');
-    targetFile.writeAsStringSync(encoder.convert(json));
   }
 }
