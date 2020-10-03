@@ -5,3 +5,4 @@ linter:
   rules:
     avoid_print: false
     prefer_final_in_for_each: false
+    prefer_const_constructors: false

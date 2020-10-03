@@ -1,0 +1,40 @@
+{
+    "@@last_modified": "1970-01-01T01:00:00.000",
+    "@@locale": "en",
+    "a": "a",
+    "hello": "Hello there",
+    "nestedB": "b",
+    "nestedX": "x",
+    "nestedX2": "x",
+    "nestedY": "y",
+    "@a": {
+        "placeholders": {},
+        "description": "\n/// ### a\n/// - en: a\n/// - de: a",
+        "type": "text"
+    },
+    "@hello": {
+        "placeholders": {},
+        "description": "\n/// ### Hello there\n/// - en: Hello there\n/// - de: !!! MISSING !!!",
+        "type": "text"
+    },
+    "@nestedB": {
+        "placeholders": {},
+        "description": "\n/// ### b\n/// - en: b\n/// - de: !!! MISSING !!!",
+        "type": "text"
+    },
+    "@nestedX": {
+        "placeholders": {},
+        "description": "\n/// ### x\n/// - en: x\n/// - de: !!! MISSING !!!",
+        "type": "text"
+    },
+    "@nestedX2": {
+        "placeholders": {},
+        "description": "\n/// ### x\n/// - en: x\n/// - de: !!! MISSING !!!",
+        "type": "text"
+    },
+    "@nestedY": {
+        "placeholders": {},
+        "description": "\n/// ### y\n/// - en: y\n/// - de: !!! MISSING !!!",
+        "type": "text"
+    }
+}

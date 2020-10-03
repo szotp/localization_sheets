@@ -148,7 +148,7 @@ void saveProject(ArbProject project, Directory targetDirectory) {
       }
     }
 
-    const encoder = JsonEncoder.withIndent(' ');
+    const encoder = JsonEncoder.withIndent('    ');
     targetFile.ensureDirectoryExists();
     targetFile.writeAsStringSync(encoder.convert(json));
   }
