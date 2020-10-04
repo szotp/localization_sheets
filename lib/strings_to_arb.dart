@@ -2,16 +2,7 @@ import 'dart:io';
 
 import 'package:arb/dart_arb.dart';
 import 'package:recase/recase.dart';
-import 'arb.dart';
 import 'file_ext.dart';
-
-import 'insert_descriptions.dart';
-
-void stringsToArb(File template, Directory targetDirectory) {
-  final project = parseStrings(template.path);
-  insertDescriptions(project);
-  saveProject(project, targetDirectory);
-}
 
 final placeholdersRegex = RegExp('%[@dfs]');
 final forbidden = RegExp('[!(){};\'",:&#]');

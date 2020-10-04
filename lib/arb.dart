@@ -36,8 +36,11 @@ Map<String, dynamic> flatten(Map<String, dynamic> input) {
   return r;
 }
 
-void _flatten(
-    Map<String, dynamic> input, Map<String, dynamic> results, String prefix) {
+void _flatten(Map<String, dynamic> input, Map<String, dynamic> results, String prefix) {
+  if (input == null) {
+    return;
+  }
+
   for (final entry in input.entries) {
     if (entry.value is String || entry.key.startsWith('@')) {
       results[prefix + entry.key] = entry.value;
@@ -128,9 +131,11 @@ int compareKeys(String a, String b) {
 }
 
 void saveProject(ArbProject project, Directory targetDirectory) {
-  final allKeys = project.mapDocuments[project.defaultTemplate].resources.values
-      .map((x) => x.id)
-      .toSet();
+  final allKeys = project.mapDocuments[project.defaultTemplate].resources.values.map((x) => x.id).toSet();
+
+  if (!targetDirectory.existsSync()) {
+    targetDirectory.createSync(recursive: true);
+  }
 
   for (final doc in project.documents) {
     final targetFile = targetDirectory.childFile('${doc.locale}.arb');

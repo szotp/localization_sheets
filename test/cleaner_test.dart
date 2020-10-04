@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:localization_sheets/arb.dart';
 import 'package:localization_sheets/insert_descriptions.dart';
 import 'package:test/test.dart';
+import '../bin/arb_cleanup.dart' as arb_cleanup;
 
 import 'utils.dart';
 
@@ -30,21 +31,26 @@ void main() {
     }
     saveProject(project, current);
 
-    expect(snapshot(current), snapshot(target));
+    expect(current.snapshot(), target.snapshot());
   });
 
-  // test('cleaner command', () {
-  //   normalizeCurrentDirectory();
-  //   Directory.current = '../example_flutter';
+  test('example_flutter', () {
+    Directory.current = '../example_flutter';
+    arb_cleanup.main([]);
+  });
 
-  //   runCommand(
-  //     'flutter',
-  //     'pub get'.split(' '),
-  //   );
+  test('ios import', () {
+    final strings = File('files/ios_strings/en.lproj/Localizable.strings').absolute;
+    assert(strings.existsSync());
 
-  //   runCommand(
-  //     'flutter',
-  //     'pub run arb_cleanup'.split(' '),
-  //   );
-  // });
+    Directory.current = (temp.childDirectory('ios_test')..createSync(recursive: true));
+    arb_cleanup.main(['--import_ios_strings', strings.path]);
+
+    expect(Directory.current.snapshot(includeChecksums: false), [
+      '/assets',
+      '/assets/languages',
+      '/assets/languages/en.arb',
+      '/assets/languages/pl.arb',
+    ]);
+  });
 }

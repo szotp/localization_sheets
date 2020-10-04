@@ -1,9 +1,12 @@
 #!/usr/bin/env dart
 
 import 'dart:io';
+import 'package:arb/models/arb_project.dart';
 import 'package:localization_sheets/arb.dart';
 import 'package:localization_sheets/insert_descriptions.dart';
 import 'package:args/args.dart';
+
+import 'package:localization_sheets/strings_to_arb.dart';
 
 class ArbCleanupCommand {
   String importIosStrings;
@@ -19,10 +22,18 @@ class ArbCleanupCommand {
   }
 
   void execute() {
-    Directory.current = 'assets/languages';
-    final project = loadProject();
+    final directory = Directory('assets/languages');
+
+    ArbProject project;
+
+    if (importIosStrings != null) {
+      project = parseStrings(importIosStrings);
+    } else {
+      project = loadProject(directory: directory);
+    }
+
     insertDescriptions(project);
-    saveProject(project, Directory.current);
+    saveProject(project, directory);
   }
 }
 
