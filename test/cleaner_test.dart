@@ -3,32 +3,23 @@ import 'dart:io';
 import 'package:localization_sheets/arb.dart';
 import 'package:localization_sheets/insert_descriptions.dart';
 import 'package:test/test.dart';
-import 'package:localization_sheets/file_ext.dart';
-import 'package:crypto/crypto.dart';
+import '../bin/arb_cleanup.dart' as arb_cleanup;
 
-Directory _initial;
-void normalizeCurrentDirectory() {
-  _initial ??= Directory.current;
-  if (_initial.basename != 'test') {
-    _initial = Directory('test');
-  }
-
-  Directory.current = _initial;
-  assert(Directory.current.existsSync());
-}
+import 'utils.dart';
 
 void main() {
+  normalizeCurrentDirectory();
+
   test('cleaner works', () {
-    normalizeCurrentDirectory();
     final project = loadProject(
-      directory: Directory('files'),
+      directory: Directory('files/arb_dirty'),
       lastModified: DateTime.fromMillisecondsSinceEpoch(0),
     );
     expect(project.defaultTemplate == 'en', true);
     insertDescriptions(project);
 
     final target = Directory('../example_flutter/assets/languages');
-    final current = Directory('temp/files_current');
+    final current = Directory('files/temp/files_current');
 
     if (!target.existsSync()) {
       print('Target missing. Regenerating...');
@@ -40,46 +31,26 @@ void main() {
     }
     saveProject(project, current);
 
-    expect(snapshot(current), snapshot(target));
+    expect(current.snapshot(), target.snapshot());
   });
 
-  test('cleaner command', () {
-    normalizeCurrentDirectory();
+  test('example_flutter', () {
     Directory.current = '../example_flutter';
-
-    runCommand(
-      'flutter',
-      'pub get'.split(' '),
-    );
-
-    runCommand(
-      'flutter',
-      'pub run arb_cleanup'.split(' '),
-    );
+    arb_cleanup.main([]);
   });
-}
 
-void runCommand(String command, List<String> arguments) {
-  final result = Process.runSync(
-    command,
-    arguments,
-    includeParentEnvironment: true,
-  );
+  test('ios import', () {
+    final strings = File('files/ios_strings/en.lproj/Localizable.strings').absolute;
+    assert(strings.existsSync());
 
-  print(result.stdout);
-  print(result.stderr);
-}
+    Directory.current = (temp.childDirectory('ios_test')..createSync(recursive: true));
+    arb_cleanup.main(['--import_ios_strings', strings.path]);
 
-String snapshot(Directory dir) {
-  return dir
-      .listSync()
-      .where((x) => x.extension == '.arb')
-      .map((x) => '${x.basename}: ${(x as File).calculateChecksum()}')
-      .join('\n');
-}
-
-extension on File {
-  String calculateChecksum() {
-    return sha256.convert(readAsBytesSync()).toString();
-  }
+    expect(Directory.current.snapshot(includeChecksums: false), [
+      '/assets',
+      '/assets/languages',
+      '/assets/languages/en.arb',
+      '/assets/languages/pl.arb',
+    ]);
+  });
 }

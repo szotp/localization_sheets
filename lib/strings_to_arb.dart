@@ -2,26 +2,17 @@ import 'dart:io';
 
 import 'package:arb/dart_arb.dart';
 import 'package:recase/recase.dart';
-import 'arb.dart';
 import 'file_ext.dart';
 
-import 'insert_descriptions.dart';
-
-void stringsToArb(File template, Directory targetDirectory) {
-  final project = parseStrings(template.path);
-  insertDescriptions(project);
-  saveProject(project, targetDirectory);
-}
-
-final placeholdersRegex = RegExp(r'%[@dfs]');
-final forbidden = RegExp('[!(){};\'\",:&#]');
+final placeholdersRegex = RegExp('%[@dfs]');
+final forbidden = RegExp('[!(){};\'",:&#]');
 
 ArbDocument _parseArbDocument(File file, String language) {
   final doc = StringEnumerator(file.readAsStringSync());
 
   final Map<String, ArbResource> resources = {};
 
-  const delimiter = '\"';
+  const delimiter = '"';
 
   while (!doc.eof) {
     final peek = doc.peek;
@@ -69,9 +60,7 @@ ArbResource _parseResouce(String key, String value) {
   });
 
   final result = ArbResource(sanitizeKey(key), sanitizedValue);
-  result.attributes['placeholders'] = <String, Map>{
-    for (final p in result.value.placeholders) p.name: {}
-  };
+  result.attributes['placeholders'] = <String, Map>{for (final p in result.value.placeholders) p.name: {}};
   return result;
 }
 
@@ -83,14 +72,13 @@ String sanitizeKey(String keyp) {
 
   key = key.replaceAllMapped(placeholdersRegex, (x) => items[index++]);
   key = key.replaceAll(forbidden, '_');
-  key = key.replaceAll('\"', '_');
+  key = key.replaceAll('"', '_');
   key = key.camelCase;
 
   return key;
 }
 
-Iterable<ArbDocument> _parseArbDocuments(
-    Directory directory, String basename) sync* {
+Iterable<ArbDocument> _parseArbDocuments(Directory directory, String basename) sync* {
   for (final lproj in directory.listSync()) {
     if (lproj.path.endsWith('.lproj')) {
       final language = lproj.basenameWithoutExtension;
@@ -157,9 +145,7 @@ class StringEnumerator {
         continue;
       }
 
-      final matches =
-          content.substring(index - 1, index - 1 + characters.length) ==
-              characters;
+      final matches = content.substring(index - 1, index - 1 + characters.length) == characters;
       if (matches) {
         for (int i = 1; i < characters.length; i++) {
           pop();

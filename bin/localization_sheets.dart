@@ -1,3 +1,5 @@
+#!/usr/bin/env dart
+
 import 'dart:io';
 import 'package:localization_sheets/localization_sheets.dart';
 

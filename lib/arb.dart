@@ -152,6 +152,10 @@ void saveProject(ArbProject project, Directory targetDirectory) {
       .map((x) => x.id)
       .toSet();
 
+  if (!targetDirectory.existsSync()) {
+    targetDirectory.createSync(recursive: true);
+  }
+
   for (final doc in project.documents) {
     final targetFile = targetDirectory.childFile('${doc.locale}.arb');
 
