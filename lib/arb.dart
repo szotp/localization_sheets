@@ -38,6 +38,10 @@ Map<String, dynamic> flatten(Map<String, dynamic> input) {
 
 void _flatten(
     Map<String, dynamic> input, Map<String, dynamic> results, String prefix) {
+  if (input == null) {
+    return;
+  }
+
   for (final entry in input.entries) {
     if (entry.value is String || entry.key.startsWith('@')) {
       results[prefix + entry.key] = entry.value;
@@ -48,6 +52,21 @@ void _flatten(
     final valueMap = entry.value as Map<String, dynamic>;
     _flatten(valueMap, results, newPrefix);
   }
+}
+
+Map<String, dynamic> removeAttributesForNonExistingKeys(
+    Map<String, dynamic> map) {
+  final copy = Map<String, dynamic>.from(map);
+
+  copy.removeWhere((key, value) {
+    if (key.startsWith('@') && !key.startsWith('@@')) {
+      return !map.containsKey(key.substring(1));
+    }
+
+    return false;
+  });
+
+  return copy;
 }
 
 Map<String, dynamic> recaseKeys(Map<String, dynamic> input) {
@@ -87,6 +106,7 @@ ArbProject loadProject({
       var map = jsonDecode(content) as Map<String, dynamic>;
       map = flatten(map);
       map = recaseKeys(map);
+      map = removeAttributesForNonExistingKeys(map);
 
       final doc = ArbDocument.fromJson(map);
       if (lastModified != null) {
