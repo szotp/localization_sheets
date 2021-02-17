@@ -7,6 +7,8 @@ import 'package:localization_sheets/localization_sheets.dart';
 import 'package:localization_sheets/file_ext.dart';
 import 'package:recase/recase.dart';
 
+import 'strings_to_arb.dart';
+
 /// Parses arb files and prints them as tsv
 void parseArb() {
   final c = currentConfig;
@@ -74,8 +76,7 @@ Map<String, dynamic> recaseKeys(Map<String, dynamic> input) {
 
   return input.map((k, v) {
     if (!k.startsWith('@')) {
-      k = k.camelCase;
-
+      k = ArbProcessor.recase(k);
       if (usedKey.contains(k)) {
         int counter = 2;
         while (usedKey.contains('$k$counter')) {
@@ -90,38 +91,101 @@ Map<String, dynamic> recaseKeys(Map<String, dynamic> input) {
   });
 }
 
-ArbProject loadProject({
-  String defaultLocale = 'en',
-  Directory directory,
-  DateTime lastModified,
-  String extension = '.arb',
-}) {
-  final docs = <ArbDocument>[];
+// ignore: avoid_classes_with_only_static_members
+class ArbProcessor {
+  // ignore: prefer_function_declarations_over_variables
+  static String Function(String) recase = (x) => x.camelCase;
 
-  directory ??= Directory.current;
+  static ArbProject merge(List<ArbProject> projects) {
+    final docs = <String, ArbDocument>{};
 
-  for (final file in directory.listSync()) {
-    if (file.extension == extension) {
-      final content = (file as File).readAsStringSync();
-      var map = jsonDecode(content) as Map<String, dynamic>;
-      map = flatten(map);
-      map = recaseKeys(map);
-      map = removeAttributesForNonExistingKeys(map);
+    for (final p in projects) {
+      for (final document in p.documents) {
+        final newResources = docs
+            .putIfAbsent(document.locale, () => ArbDocument(document.locale))
+            .resources;
 
-      final doc = ArbDocument.fromJson(map);
-      if (lastModified != null) {
-        doc.lastModified = lastModified;
+        for (final key in document.resources.keys) {
+          final resource = document.resources[key];
+          if (newResources.containsKey(key)) {
+            assert(newResources[key].value.toString() ==
+                resource.value.toString());
+            continue;
+          }
+
+          newResources[key] = document.resources[key];
+        }
       }
-
-      doc.locale ??= file.basenameWithoutExtension;
-      assert(doc.locale == file.basenameWithoutExtension);
-      docs.add(doc);
     }
+
+    final doc = docs.values.toList();
+
+    doc.sort((a, b) => a.locale.compareTo(b.locale));
+    final defaultIndex = doc.indexWhere(
+        (element) => element.locale == projects.first.defaultTemplate);
+    doc.insert(0, doc.removeAt(defaultIndex));
+
+    return ArbProject('x', documents: doc);
   }
 
-  final proj = ArbProject('$defaultLocale.arb', documents: docs);
-  proj.defaultTemplate = defaultLocale;
-  return proj;
+  static ArbProject loadIosStrings(String templatePath) =>
+      parseStrings(templatePath);
+
+  static ArbProject loadProject({
+    String defaultLocale = 'en',
+    Directory directory,
+    DateTime lastModified,
+    String extension = 'arb',
+  }) {
+    final docs = <ArbDocument>[];
+
+    directory ??= Directory.current;
+
+    for (final file in directory.listSync()) {
+      if (file.extension == extension) {
+        final content = (file as File).readAsStringSync();
+        var map = jsonDecode(content) as Map<String, dynamic>;
+        map = flatten(map);
+        map = recaseKeys(map);
+        map = removeAttributesForNonExistingKeys(map);
+
+        final doc = ArbDocument.fromJson(map);
+        if (lastModified != null) {
+          doc.lastModified = lastModified;
+        }
+
+        doc.locale ??= file.basenameWithoutExtension;
+        assert(doc.locale == file.basenameWithoutExtension);
+        docs.add(doc);
+      }
+    }
+
+    final proj = ArbProject('$defaultLocale$extension', documents: docs);
+    proj.defaultTemplate = defaultLocale;
+    return proj;
+  }
+
+  static void printTsv(ArbProject merged) {
+    final buffer = StringBuffer();
+
+    final languages = merged.documents.map((e) => e.locale);
+
+    buffer.writeln(['key', ...languages].join('\t'));
+
+    final keys = merged.resources.keys.toList();
+    keys.sort();
+
+    for (final key in keys) {
+      final values = [
+        key,
+        ...merged.documents.map((e) => e.resources[key]?.value?.text ?? ''),
+      ];
+
+      buffer.writeln(values.join('\t'));
+    }
+
+    File('file.tsv').writeAsStringSync(buffer.toString());
+  }
 }
 
 enum KeyKind { metaMeta, normal, meta }

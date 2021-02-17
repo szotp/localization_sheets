@@ -6,8 +6,6 @@ import 'package:localization_sheets/arb.dart';
 import 'package:localization_sheets/insert_descriptions.dart';
 import 'package:args/args.dart';
 
-import 'package:localization_sheets/strings_to_arb.dart';
-
 class ArbCleanupCommand {
   String importIosStrings;
 
@@ -16,7 +14,8 @@ class ArbCleanupCommand {
       ..addOption(
         "import_ios_strings",
         callback: (String value) => importIosStrings = value,
-        help: 'Path pointing to Localizable.strings file that you want to convert into .arb files for this project',
+        help:
+            'Path pointing to Localizable.strings file that you want to convert into .arb files for this project',
       )
       ..parse(args);
   }
@@ -27,9 +26,9 @@ class ArbCleanupCommand {
     ArbProject project;
 
     if (importIosStrings != null) {
-      project = parseStrings(importIosStrings);
+      project = ArbProcessor.loadIosStrings(importIosStrings);
     } else {
-      project = loadProject(directory: directory);
+      project = ArbProcessor.loadProject(directory: directory);
     }
 
     insertDescriptions(project);

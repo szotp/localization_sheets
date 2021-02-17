@@ -11,7 +11,7 @@ void main() {
   normalizeCurrentDirectory();
 
   test('cleaner works', () {
-    final project = loadProject(
+    final project = ArbProcessor.loadProject(
       directory: Directory('files/arb_dirty'),
       lastModified: DateTime.fromMillisecondsSinceEpoch(0),
     );
@@ -40,10 +40,12 @@ void main() {
   });
 
   test('ios import', () {
-    final strings = File('files/ios_strings/en.lproj/Localizable.strings').absolute;
+    final strings =
+        File('files/ios_strings/en.lproj/Localizable.strings').absolute;
     assert(strings.existsSync());
 
-    Directory.current = (temp.childDirectory('ios_test')..createSync(recursive: true));
+    Directory.current =
+        (temp.childDirectory('ios_test')..createSync(recursive: true));
     arb_cleanup.main(['--import_ios_strings', strings.path]);
 
     expect(Directory.current.snapshot(includeChecksums: false), [
