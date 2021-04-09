@@ -16,6 +16,9 @@ export PATH=$PATH:$HOME/flutter/bin/cache/dart-sdk/bin
 4. If running for the first time: tool will ask you to open URL and grant some permissions.
 5. Commit the changes if needed.
 
+# Troubleshooting
+
+In case o problems, delete the cache directory: `rm -f ~/.localization_sheets`
 
 # custom.dart
 ```dart
