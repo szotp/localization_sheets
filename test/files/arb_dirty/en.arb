@@ -1,0 +1,12 @@
+{
+    "hello": "Hello there",
+    "NESTED": {
+        "X": "x",
+        "Y": "y"
+    },
+    "nested": {
+        "b": "b",
+        "x": "x"
+    },
+    "a": "a"
+}
