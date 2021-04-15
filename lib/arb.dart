@@ -3,9 +3,12 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:arb/models/arb_document.dart';
 import 'package:arb/models/arb_project.dart';
+import 'package:arb/models/arb_resource.dart';
 import 'package:localization_sheets/localization_sheets.dart';
 import 'package:localization_sheets/file_ext.dart';
 import 'package:recase/recase.dart';
+
+import 'strings_to_arb.dart';
 
 /// Parses arb files and prints them as tsv
 void parseArb() {
@@ -36,7 +39,8 @@ Map<String, dynamic> flatten(Map<String, dynamic> input) {
   return r;
 }
 
-void _flatten(Map<String, dynamic> input, Map<String, dynamic> results, String prefix) {
+void _flatten(
+    Map<String, dynamic> input, Map<String, dynamic> results, String prefix) {
   if (input == null) {
     return;
   }
@@ -53,13 +57,27 @@ void _flatten(Map<String, dynamic> input, Map<String, dynamic> results, String p
   }
 }
 
+Map<String, dynamic> removeAttributesForNonExistingKeys(
+    Map<String, dynamic> map) {
+  final copy = Map<String, dynamic>.from(map);
+
+  copy.removeWhere((key, value) {
+    if (key.startsWith('@') && !key.startsWith('@@')) {
+      return !map.containsKey(key.substring(1));
+    }
+
+    return false;
+  });
+
+  return copy;
+}
+
 Map<String, dynamic> recaseKeys(Map<String, dynamic> input) {
   final usedKey = <String>{};
 
   return input.map((k, v) {
     if (!k.startsWith('@')) {
-      k = k.camelCase;
-
+      k = ArbProcessor.recase(k);
       if (usedKey.contains(k)) {
         int counter = 2;
         while (usedKey.contains('$k$counter')) {
@@ -74,37 +92,142 @@ Map<String, dynamic> recaseKeys(Map<String, dynamic> input) {
   });
 }
 
-ArbProject loadProject({
-  String defaultLocale = 'en',
-  Directory directory,
-  DateTime lastModified,
-  String extension = '.arb',
-}) {
-  final docs = <ArbDocument>[];
+extension ArbProjectExt on ArbProject {
+  Map<String, ArbResource> get defaultResources {
+    return documents
+        .firstWhere((element) => element.locale == defaultTemplate)
+        .resources;
+  }
+}
 
-  directory ??= Directory.current;
+// ignore: avoid_classes_with_only_static_members
+class ArbProcessor {
+  // ignore: prefer_function_declarations_over_variables
+  static String Function(String) recase = (x) => x.camelCase;
 
-  for (final file in directory.listSync()) {
-    if (file.extension == extension) {
-      final content = (file as File).readAsStringSync();
-      var map = jsonDecode(content) as Map<String, dynamic>;
-      map = flatten(map);
-      map = recaseKeys(map);
+  static ArbProject merge(List<ArbProject> projects, List<String> specifiers) {
+    final docs = <String, ArbDocument>{};
 
-      final doc = ArbDocument.fromJson(map);
-      if (lastModified != null) {
-        doc.lastModified = lastModified;
-      }
-
-      doc.locale ??= file.basenameWithoutExtension;
-      assert(doc.locale == file.basenameWithoutExtension);
-      docs.add(doc);
+    for (final p in projects) {
+      p.defaultTemplate = 'en';
     }
+
+    final duplicates = projects
+        .map((e) => e.defaultResources.keys)
+        .expand((element) => element)
+        .toSet();
+
+    duplicates.removeWhere((key) {
+      final values =
+          projects.map((e) => e.defaultResources[key]?.value?.text).toSet();
+      values.remove(null);
+      if (values.length > 1) {
+        print('$key $values');
+      }
+      return values.length == 1;
+    });
+
+    if (duplicates.isNotEmpty) {
+      print('Differing values: $duplicates');
+    }
+
+    for (final p in projects) {
+      for (final document in p.documents) {
+        final newResources = docs
+            .putIfAbsent(document.locale, () => ArbDocument(document.locale))
+            .resources;
+
+        for (var key in document.resources.keys) {
+          final entry = document.resources[key];
+          if (duplicates.contains(key)) {
+            key = '$key${specifiers[projects.indexOf(p)]}';
+          }
+
+          newResources[key] = entry;
+        }
+      }
+    }
+
+    final doc = docs.values.toList();
+
+    doc.sort((a, b) => a.locale.compareTo(b.locale));
+    final defaultIndex = doc.indexWhere(
+        (element) => element.locale == projects.first.defaultTemplate);
+    doc.insert(0, doc.removeAt(defaultIndex));
+
+    return ArbProject('x', documents: doc);
   }
 
-  final proj = ArbProject('$defaultLocale.arb', documents: docs);
-  proj.defaultTemplate = defaultLocale;
-  return proj;
+  static ArbProject loadIosStrings(String templatePath) =>
+      parseStrings(templatePath);
+
+  static ArbProject loadProject({
+    String defaultLocale = 'en',
+    Directory directory,
+    DateTime lastModified,
+    String extension = '.arb',
+  }) {
+    final docs = <ArbDocument>[];
+
+    directory ??= Directory.current;
+
+    for (final file in directory.listSync()) {
+      if (file.extension == extension) {
+        final content = (file as File).readAsStringSync();
+        var map = jsonDecode(content) as Map<String, dynamic>;
+        map = flatten(map);
+        map = recaseKeys(map);
+        map = removeAttributesForNonExistingKeys(map);
+
+        final doc = ArbDocument.fromJson(map);
+        if (lastModified != null) {
+          doc.lastModified = lastModified;
+        }
+
+        doc.locale ??= file.basenameWithoutExtension;
+        assert(doc.locale == file.basenameWithoutExtension);
+        docs.add(doc);
+      }
+    }
+
+    final proj = ArbProject('$defaultLocale$extension', documents: docs);
+    proj.defaultTemplate = defaultLocale;
+    return proj;
+  }
+
+  static void printTsv(ArbProject merged, List<String> languageOrder) {
+    final buffer = StringBuffer();
+
+    final documents = merged.documents.toList();
+
+    if (languageOrder != null) {
+      documents.sort((a, b) {
+        final ai = languageOrder.indexOf(a.locale);
+        final bi = languageOrder.indexOf(b.locale);
+        assert(ai != -1);
+        assert(bi != -1);
+        return ai.compareTo(bi);
+      });
+    }
+
+    final languages = documents.map((e) => e.locale);
+
+    buffer.writeln(['key', ...languages].join('\t'));
+
+    final keys = merged.resources.keys.toList();
+    keys.sort();
+
+    for (final key in keys) {
+      final values = [
+        key,
+        ...documents.map((e) => e.resources[key]?.value?.text ?? ''),
+      ];
+
+      buffer.writeln(values.join('\t'));
+    }
+
+    File('file.tsv').writeAsStringSync(buffer.toString());
+  }
 }
 
 enum KeyKind { metaMeta, normal, meta }
@@ -131,7 +254,9 @@ int compareKeys(String a, String b) {
 }
 
 void saveProject(ArbProject project, Directory targetDirectory) {
-  final allKeys = project.mapDocuments[project.defaultTemplate].resources.values.map((x) => x.id).toSet();
+  final allKeys = project.mapDocuments[project.defaultTemplate].resources.values
+      .map((x) => x.id)
+      .toSet();
 
   if (!targetDirectory.existsSync()) {
     targetDirectory.createSync(recursive: true);
