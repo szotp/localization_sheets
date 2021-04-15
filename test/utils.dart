@@ -8,10 +8,10 @@ export 'package:localization_sheets/file_ext.dart';
 
 final temp = Directory('files/temp');
 
-Directory _initial;
+Directory? _initial;
 void _normalizeCurrentDirectory() {
   _initial ??= Directory.current;
-  if (_initial.basename != 'test') {
+  if (_initial!.basename != 'test') {
     _initial = Directory('test');
   }
 
@@ -35,11 +35,7 @@ void normalizeCurrentDirectory() {
 }
 
 void runCommand(String command, List<String> arguments) {
-  final result = Process.runSync(
-    command,
-    arguments,
-    includeParentEnvironment: true,
-  );
+  final result = Process.runSync(command, arguments);
 
   print(result.stdout);
   print(result.stderr);
@@ -47,7 +43,7 @@ void runCommand(String command, List<String> arguments) {
 }
 
 extension SnapshotExt on Directory {
-  List<String> snapshot({bool includeChecksums = true}) {
+  List<String?> snapshot({bool includeChecksums = true}) {
     return listSync(recursive: true)
         .map((e) {
           final name = e.path.replaceFirst(path, '');

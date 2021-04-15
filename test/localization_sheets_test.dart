@@ -12,7 +12,7 @@ void main() {
 
   test('load credentials', () {
     saveCredentials(_data);
-    final credentials = loadCredentials();
+    final credentials = loadCredentials()!;
     expect(credentials.accessToken.data, _data.accessToken.data);
   });
 }

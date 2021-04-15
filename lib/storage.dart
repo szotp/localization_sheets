@@ -3,7 +3,7 @@ import 'dart:io';
 import "package:googleapis_auth/auth_io.dart" as google;
 
 String getHomePath() {
-  String home = "";
+  String? home = "";
   final Map<String, String> envVars = Platform.environment;
   if (Platform.isMacOS) {
     home = envVars['HOME'];
@@ -36,7 +36,7 @@ void saveCredentials(google.AccessCredentials credentials) {
   file.writeAsStringSync(json.encode(jsonObject));
 }
 
-google.AccessCredentials loadCredentials() {
+google.AccessCredentials? loadCredentials() {
   final file = _getTokenFile();
   if (!file.existsSync()) {
     return null;
@@ -53,8 +53,8 @@ google.AccessCredentials loadCredentials() {
 
   return google.AccessCredentials(
     token,
-    js['refreshToken'] as String,
+    js['refreshToken'] as String?,
     List<String>.from(js['scopes'] as List),
-    idToken: js['idToken'] as String,
+    idToken: js['idToken'] as String?,
   );
 }

@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:meta/meta.dart';
 import 'package:googleapis/drive/v3.dart' as google;
 import 'package:googleapis_auth/auth_io.dart' as google;
 import 'package:localization_sheets/storage.dart';
@@ -21,7 +20,7 @@ Future<google.AutoRefreshingAuthClient> obtainClient() async {
 
   final scopes = <String>['https://www.googleapis.com/auth/drive.readonly'];
 
-  final google.AccessCredentials credentials = loadCredentials();
+  final google.AccessCredentials? credentials = loadCredentials();
 
   if (credentials != null &&
       const ListEquality().equals(scopes, credentials.scopes)) {
@@ -52,21 +51,21 @@ Future<SpreadsheetDecoder> loadSpreadSheet(String fileId) async {
   }());
 
   if (file.existsSync() &&
-      file.lastModifiedSync().isAfter(meta.modifiedTime) &&
-      !skipCache) {
+      file.lastModifiedSync().isAfter(meta.modifiedTime!) &&
+      !skipCache!) {
     print('Using cached file...');
     final bytes = file.readAsBytesSync();
     return SpreadsheetDecoder.decodeBytes(bytes);
   }
 
   print('Downloading spreadsheet...');
-  final google.Media media = await api.files.export(
+  final media = await api.files.export(
     fileId,
     'application/x-vnd.oasis.opendocument.spreadsheet',
-    downloadOptions: google.DownloadOptions.FullMedia,
-  ) as google.Media;
+    downloadOptions: google.DownloadOptions.fullMedia,
+  );
 
-  final bytes = Uint8List(media.length);
+  final bytes = Uint8List(media!.length!);
   int i = 0;
 
   await media.stream.forEach((part) {
@@ -76,7 +75,7 @@ Future<SpreadsheetDecoder> loadSpreadSheet(String fileId) async {
   });
 
   file.writeAsBytesSync(bytes);
-  file.setLastModifiedSync(meta.modifiedTime.add(const Duration(seconds: 1)));
+  file.setLastModifiedSync(meta.modifiedTime!.add(const Duration(seconds: 1)));
 
   assert(bytes.lengthInBytes == media.length);
   client.close();
@@ -84,21 +83,18 @@ Future<SpreadsheetDecoder> loadSpreadSheet(String fileId) async {
 }
 
 bool isLanguageSpecifier(String h) {
-  if (h == null) {
-    return false;
-  }
   return h.length == 2 || h.length == 5 && h[2] == '-';
 }
 
 final _regexSnakeCaseToCamelCase = RegExp(r'[\._].');
 
 String convertKey(String key) {
-  if (!currentConfig.snakeCaseToCamelCase) {
+  if (!currentConfig.snakeCaseToCamelCase!) {
     return key;
   }
 
   final result = key.replaceAllMapped(_regexSnakeCaseToCamelCase, (x) {
-    return x.group(0)[1].toUpperCase();
+    return x.group(0)![1].toUpperCase();
   });
 
   return result.replaceRange(0, 1, result[0].toLowerCase());
@@ -112,7 +108,7 @@ Iterable<LocalizationsTable> buildMap(SpreadsheetDecoder data) sync* {
   const keyColumn = 0;
   for (var name in data.tables.keys) {
     if (config.sheets?.isNotEmpty == true) {
-      if (!config.sheets.contains(name)) {
+      if (!config.sheets!.contains(name)) {
         continue;
       }
     }
@@ -120,35 +116,35 @@ Iterable<LocalizationsTable> buildMap(SpreadsheetDecoder data) sync* {
     final table = data.tables[name];
 
     if (config.nameMap.containsKey(name)) {
-      name = config.nameMap[name];
+      name = config.nameMap[name]!;
       if (name == '') {
         continue;
       }
     }
 
-    final header = table.rows[0];
+    final header = table!.rows[0];
 
-    final Map<String, SplayTreeMap<String, String>> map = {};
+    final Map<String, SplayTreeMap<String, String?>> map = {};
 
-    for (int column = startColumn; column < table.maxCols; column++) {
+    for (int column = startColumn!; column < table.maxCols; column++) {
       final h = header[column].toString().trim();
       if (isLanguageSpecifier(h)) {
         map[h] = SplayTreeMap();
       }
     }
 
-    for (int row = startRow; row < table.maxRows; row++) {
+    for (int row = startRow!; row < table.maxRows; row++) {
       final rowData = table.rows[row];
-      final String key = (rowData[keyColumn] as String)?.trim();
+      final String? key = (rowData[keyColumn] as String?)?.trim();
 
       for (int column = startColumn; column < table.maxCols; column++) {
-        final String language = (header[column] as String)?.trim();
-        String value = rowData[column] as String;
+        final String? language = (header[column] as String?)?.trim();
+        String? value = rowData[column] as String?;
 
         value = value?.replaceAll(RegExp('{{.*}}'), '%@');
         value = value?.replaceAll(RegExp('{.*}'), '%@');
 
-        final langMap = map[language];
+        final langMap = map[language!];
         if (langMap != null &&
             key != null &&
             key.isNotEmpty &&
@@ -159,7 +155,7 @@ Iterable<LocalizationsTable> buildMap(SpreadsheetDecoder data) sync* {
     }
 
     if (currentConfig.languageForDefaults != null) {
-      final defaults = map[currentConfig.languageForDefaults];
+      final defaults = map[currentConfig.languageForDefaults!];
 
       for (final mapForLanguage in map.values) {
         if (mapForLanguage == defaults) {
@@ -172,7 +168,7 @@ Iterable<LocalizationsTable> buildMap(SpreadsheetDecoder data) sync* {
             .toList();
 
         for (final key in nulls) {
-          mapForLanguage[key] = defaults[key];
+          mapForLanguage[key] = defaults![key];
         }
       }
     }
@@ -187,14 +183,14 @@ void saveArb(SpreadsheetDecoder data) {
 
   for (var table in tables) {
     for (var language in table.languages) {
-      String path = currentConfig.outputPath;
+      String path = currentConfig.outputPath!;
 
       path = p.join(path, table.name);
       path = p.join(path, '$language.arb');
 
       final file = File(path);
       file.createSync(recursive: true);
-      final Map<String, String> langMap = table.mapForSerialization(language);
+      final Map<String, String?>? langMap = table.mapForSerialization(language);
       const encoder = JsonEncoder.withIndent('  ');
       final jsonString = encoder.convert(langMap);
       file.writeAsStringSync(jsonString);
@@ -205,15 +201,15 @@ void saveArb(SpreadsheetDecoder data) {
 }
 
 void deleteOut() {
-  final fileOut = Directory(currentConfig.outputPath);
+  final fileOut = Directory(currentConfig.outputPath!);
   if (fileOut.existsSync()) {
-    File(currentConfig.outputPath).deleteSync(recursive: true);
+    File(currentConfig.outputPath!).deleteSync(recursive: true);
   }
 }
 
 enum ExportFormat { arb, strings, android }
 
-ExportFormat exportFormatFromJson(String json) {
+ExportFormat exportFormatFromJson(String? json) {
   for (var value in ExportFormat.values) {
     if (value.toString() == json) {
       return value;
@@ -227,21 +223,21 @@ class Config {
   Map<String, String> nameMap;
   List<String> skipLanguages;
   ExportFormat format;
-  String outputPath;
-  String id;
-  bool skipCache;
-  bool snakeCaseToCamelCase;
-  int headerRows;
-  int headerColumns;
-  List<String> sheets;
-  String languageForDefaults;
+  String? outputPath;
+  String? id;
+  bool? skipCache;
+  bool? snakeCaseToCamelCase;
+  int? headerRows;
+  int? headerColumns;
+  List<String>? sheets;
+  String? languageForDefaults;
 
   Config({
-    @required this.nameMap,
-    @required this.skipLanguages,
-    @required this.format,
-    @required this.outputPath,
-    @required this.id,
+    required this.nameMap,
+    required this.skipLanguages,
+    required this.format,
+    required this.outputPath,
+    required this.id,
     this.skipCache,
     this.snakeCaseToCamelCase,
     this.headerRows,
@@ -251,26 +247,26 @@ class Config {
   });
 
   factory Config.fromJson(dynamic json) {
-    Map<String, String> parseMap(Map map) {
+    Map<String, String> parseMap(Map? map) {
       return map?.cast<String, String>() ?? {};
     }
 
-    List<String> parseArray(List list) {
+    List<String> parseArray(List? list) {
       return list?.cast<String>() ?? [];
     }
 
     return Config(
-      nameMap: parseMap(json['nameMap'] as Map),
-      skipLanguages: parseArray(json['skipLanguages'] as List),
-      format: exportFormatFromJson(json['exportFormat'] as String),
-      outputPath: json['outputPath'] as String,
-      id: json['id'] as String,
-      skipCache: json['skipCache'] as bool ?? false,
-      snakeCaseToCamelCase: json['snakeCaseToCamelCase'] as bool ?? false,
-      headerRows: json['headerRows'] as int ?? 2,
-      headerColumns: json['headerColumns'] as int ?? 2,
-      sheets: parseArray(json['sheets'] as List),
-      languageForDefaults: json['languageForDefaults'] as String,
+      nameMap: parseMap(json['nameMap'] as Map?),
+      skipLanguages: parseArray(json['skipLanguages'] as List?),
+      format: exportFormatFromJson(json['exportFormat'] as String?),
+      outputPath: json['outputPath'] as String?,
+      id: json['id'] as String?,
+      skipCache: json['skipCache'] as bool? ?? false,
+      snakeCaseToCamelCase: json['snakeCaseToCamelCase'] as bool? ?? false,
+      headerRows: json['headerRows'] as int? ?? 2,
+      headerColumns: json['headerColumns'] as int? ?? 2,
+      sheets: parseArray(json['sheets'] as List?),
+      languageForDefaults: json['languageForDefaults'] as String?,
     );
   }
 
@@ -304,7 +300,7 @@ void validatePlaceholders(LocalizationsTable table, Config config) {
         .map((lang) => MapEntry(lang, table.getString(lang, key)))
         .toList();
 
-    final expected = countPlaceholders(table.getString('en', key));
+    final expected = countPlaceholders(table.getString('en', key)!);
 
     for (var entry in entries) {
       if (entry.value == null) {
@@ -312,7 +308,7 @@ void validatePlaceholders(LocalizationsTable table, Config config) {
         continue;
       }
 
-      final got = countPlaceholders(entry.value);
+      final got = countPlaceholders(entry.value!);
       if (got != expected) {
         print('placeholder error: $got/$expected, $key.${entry.key}');
       }
@@ -362,11 +358,11 @@ void saveStrings(SpreadsheetDecoder data, Config config) {
   }
 }
 
-Config currentConfig;
+late Config currentConfig;
 
 Future<void> run(Config config) async {
   currentConfig = config;
-  final sheet = await loadSpreadSheet(config.id);
+  final sheet = await loadSpreadSheet(config.id!);
 
   switch (config.format) {
     case ExportFormat.arb:
@@ -397,14 +393,14 @@ List<String> getKeys(Iterable<String> keys) {
 }
 
 class LocalizationsTable {
-  final String name;
-  final Map<String, SplayTreeMap<String, String>> _map;
+  final String? name;
+  final Map<String, SplayTreeMap<String, String?>> _map;
 
   Iterable<String> get languages => _map.keys;
 
   LocalizationsTable(this.name, this._map) : keys = _getKeys(_map);
 
-  static List<String> _getKeys(Map<String, Map<String, String>> map) {
+  static List<String> _getKeys(Map<String, Map<String, String?>> map) {
     final english = map['en'];
     if (english == null) {
       return [];
@@ -416,14 +412,15 @@ class LocalizationsTable {
 
   final List<String> keys;
 
-  Map<String, String> mapForSerialization(String language) => _map[language];
+  Map<String, String?>? mapForSerialization(String language) => _map[language];
 
-  String getString(String language, String key, {bool provideFallback = true}) {
-    final result = _map[language][key];
+  String? getString(String language, String key,
+      {bool provideFallback = true}) {
+    final result = _map[language]![key];
     if (result != null) {
       return result;
     } else if (provideFallback) {
-      return _map['en'][key] ?? '';
+      return _map['en']![key] ?? '';
     } else {
       return null;
     }

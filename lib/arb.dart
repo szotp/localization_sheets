@@ -14,7 +14,7 @@ import 'strings_to_arb.dart';
 void parseArb() {
   final c = currentConfig;
 
-  final dir = Directory(c.outputPath);
+  final dir = Directory(c.outputPath!);
 
   for (var item in dir.listSync()) {
     if (item is Directory) {
@@ -33,14 +33,14 @@ void parseArb() {
   }
 }
 
-Map<String, dynamic> flatten(Map<String, dynamic> input) {
+Map<String, dynamic> flatten(Map<String, dynamic>? input) {
   final r = <String, dynamic>{};
   _flatten(input, r, '');
   return r;
 }
 
 void _flatten(
-    Map<String, dynamic> input, Map<String, dynamic> results, String prefix) {
+    Map<String, dynamic>? input, Map<String, dynamic> results, String prefix) {
   if (input == null) {
     return;
   }
@@ -119,7 +119,7 @@ class ArbProcessor {
 
     duplicates.removeWhere((key) {
       final values =
-          projects.map((e) => e.defaultResources[key]?.value?.text).toSet();
+          projects.map((e) => e.defaultResources[key]?.value.text).toSet();
       values.remove(null);
       if (values.length > 1) {
         print('$key $values');
@@ -133,7 +133,7 @@ class ArbProcessor {
 
     for (final p in projects) {
       for (final document in p.documents) {
-        final newResources = docs
+        final Map<String, ArbResource?> newResources = docs
             .putIfAbsent(document.locale, () => ArbDocument(document.locale))
             .resources;
 
@@ -163,8 +163,8 @@ class ArbProcessor {
 
   static ArbProject loadProject({
     String defaultLocale = 'en',
-    Directory directory,
-    DateTime lastModified,
+    Directory? directory,
+    DateTime? lastModified,
     String extension = '.arb',
   }) {
     final docs = <ArbDocument>[];
@@ -174,17 +174,17 @@ class ArbProcessor {
     for (final file in directory.listSync()) {
       if (file.extension == extension) {
         final content = (file as File).readAsStringSync();
-        var map = jsonDecode(content) as Map<String, dynamic>;
+        var map = jsonDecode(content) as Map<String, dynamic>?;
         map = flatten(map);
         map = recaseKeys(map);
         map = removeAttributesForNonExistingKeys(map);
 
-        final doc = ArbDocument.fromJson(map);
+        final doc =
+            ArbDocument.fromJson(map, locale: file.basenameWithoutExtension);
         if (lastModified != null) {
           doc.lastModified = lastModified;
         }
 
-        doc.locale ??= file.basenameWithoutExtension;
         assert(doc.locale == file.basenameWithoutExtension);
         docs.add(doc);
       }
@@ -200,15 +200,13 @@ class ArbProcessor {
 
     final documents = merged.documents.toList();
 
-    if (languageOrder != null) {
-      documents.sort((a, b) {
-        final ai = languageOrder.indexOf(a.locale);
-        final bi = languageOrder.indexOf(b.locale);
-        assert(ai != -1);
-        assert(bi != -1);
-        return ai.compareTo(bi);
-      });
-    }
+    documents.sort((a, b) {
+      final ai = languageOrder.indexOf(a.locale);
+      final bi = languageOrder.indexOf(b.locale);
+      assert(ai != -1);
+      assert(bi != -1);
+      return ai.compareTo(bi);
+    });
 
     final languages = documents.map((e) => e.locale);
 
@@ -220,7 +218,7 @@ class ArbProcessor {
     for (final key in keys) {
       final values = [
         key,
-        ...documents.map((e) => e.resources[key]?.value?.text ?? ''),
+        ...documents.map((e) => e.resources[key]?.value.text ?? ''),
       ];
 
       buffer.writeln(values.join('\t'));
@@ -254,7 +252,8 @@ int compareKeys(String a, String b) {
 }
 
 void saveProject(ArbProject project, Directory targetDirectory) {
-  final allKeys = project.mapDocuments[project.defaultTemplate].resources.values
+  final allKeys = project
+      .mapDocuments[project.defaultTemplate]!.resources.values
       .map((x) => x.id)
       .toSet();
 
