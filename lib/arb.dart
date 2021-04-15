@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:arb/models/arb_document.dart';
 import 'package:arb/models/arb_project.dart';
+import 'package:arb/models/arb_resource.dart';
 import 'package:localization_sheets/localization_sheets.dart';
 import 'package:localization_sheets/file_ext.dart';
 import 'package:recase/recase.dart';
@@ -91,13 +92,44 @@ Map<String, dynamic> recaseKeys(Map<String, dynamic> input) {
   });
 }
 
+extension ArbProjectExt on ArbProject {
+  Map<String, ArbResource> get defaultResources {
+    return documents
+        .firstWhere((element) => element.locale == defaultTemplate)
+        .resources;
+  }
+}
+
 // ignore: avoid_classes_with_only_static_members
 class ArbProcessor {
   // ignore: prefer_function_declarations_over_variables
   static String Function(String) recase = (x) => x.camelCase;
 
-  static ArbProject merge(List<ArbProject> projects) {
+  static ArbProject merge(List<ArbProject> projects, List<String> specifiers) {
     final docs = <String, ArbDocument>{};
+
+    for (final p in projects) {
+      p.defaultTemplate = 'en';
+    }
+
+    final duplicates = projects
+        .map((e) => e.defaultResources.keys)
+        .expand((element) => element)
+        .toSet();
+
+    duplicates.removeWhere((key) {
+      final values =
+          projects.map((e) => e.defaultResources[key]?.value?.text).toSet();
+      values.remove(null);
+      if (values.length > 1) {
+        print('$key $values');
+      }
+      return values.length == 1;
+    });
+
+    if (duplicates.isNotEmpty) {
+      print('Differing values: $duplicates');
+    }
 
     for (final p in projects) {
       for (final document in p.documents) {
@@ -105,15 +137,13 @@ class ArbProcessor {
             .putIfAbsent(document.locale, () => ArbDocument(document.locale))
             .resources;
 
-        for (final key in document.resources.keys) {
-          final resource = document.resources[key];
-          if (newResources.containsKey(key)) {
-            assert(newResources[key].value.toString() ==
-                resource.value.toString());
-            continue;
+        for (var key in document.resources.keys) {
+          final entry = document.resources[key];
+          if (duplicates.contains(key)) {
+            key = '$key${specifiers[projects.indexOf(p)]}';
           }
 
-          newResources[key] = document.resources[key];
+          newResources[key] = entry;
         }
       }
     }
@@ -135,7 +165,7 @@ class ArbProcessor {
     String defaultLocale = 'en',
     Directory directory,
     DateTime lastModified,
-    String extension = 'arb',
+    String extension = '.arb',
   }) {
     final docs = <ArbDocument>[];
 
@@ -165,10 +195,22 @@ class ArbProcessor {
     return proj;
   }
 
-  static void printTsv(ArbProject merged) {
+  static void printTsv(ArbProject merged, List<String> languageOrder) {
     final buffer = StringBuffer();
 
-    final languages = merged.documents.map((e) => e.locale);
+    final documents = merged.documents.toList();
+
+    if (languageOrder != null) {
+      documents.sort((a, b) {
+        final ai = languageOrder.indexOf(a.locale);
+        final bi = languageOrder.indexOf(b.locale);
+        assert(ai != -1);
+        assert(bi != -1);
+        return ai.compareTo(bi);
+      });
+    }
+
+    final languages = documents.map((e) => e.locale);
 
     buffer.writeln(['key', ...languages].join('\t'));
 
@@ -178,7 +220,7 @@ class ArbProcessor {
     for (final key in keys) {
       final values = [
         key,
-        ...merged.documents.map((e) => e.resources[key]?.value?.text ?? ''),
+        ...documents.map((e) => e.resources[key]?.value?.text ?? ''),
       ];
 
       buffer.writeln(values.join('\t'));

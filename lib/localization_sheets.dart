@@ -143,7 +143,10 @@ Iterable<LocalizationsTable> buildMap(SpreadsheetDecoder data) sync* {
 
       for (int column = startColumn; column < table.maxCols; column++) {
         final String language = (header[column] as String)?.trim();
-        final String value = rowData[column] as String;
+        String value = rowData[column] as String;
+
+        value = value?.replaceAll(RegExp('{{.*}}'), '%@');
+        value = value?.replaceAll(RegExp('{.*}'), '%@');
 
         final langMap = map[language];
         if (langMap != null &&

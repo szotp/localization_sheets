@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:arb/dart_arb.dart';
-import 'package:recase/recase.dart';
 import 'arb.dart';
 import 'file_ext.dart';
 
@@ -48,7 +47,8 @@ ArbDocument _parseArbDocument(File file, String language) {
     final value = doc.popString(delimiter);
 
     doc.popExpecting(';');
-    resources[key] = _parseResouce(key, value);
+    final resource = _parseResouce(key, value);
+    resources[resource.id] = resource;
   }
 
   return ArbDocument(language, resources: resources);
