@@ -141,8 +141,12 @@ Iterable<LocalizationsTable> buildMap(SpreadsheetDecoder data) sync* {
         final String? language = (header[column] as String?)?.trim();
         String? value = rowData[column] as String?;
 
-        value = value?.replaceAll(RegExp('{{.*}}'), '%@');
-        value = value?.replaceAll(RegExp('{.*}'), '%@');
+        const iOSPlaceholders = false;
+
+        if (iOSPlaceholders) {
+          value = value?.replaceAll(RegExp('{{.*}}'), '%@');
+          value = value?.replaceAll(RegExp('{.*}'), '%@');
+        }
 
         final langMap = map[language!];
         if (langMap != null &&
