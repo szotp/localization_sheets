@@ -52,7 +52,7 @@ void _flatten(
     }
 
     final newPrefix = '$prefix${prefix.isEmpty ? '' : '_'}${entry.key}_';
-    final valueMap = entry.value as Map<String, dynamic>;
+    final valueMap = entry.value as Map<String, dynamic>?;
     _flatten(valueMap, results, newPrefix);
   }
 }
