@@ -148,7 +148,7 @@ Iterable<LocalizationsTable> buildMap(SpreadsheetDecoder data) sync* {
           value = value?.replaceAll(RegExp('{.*}'), '%@');
         }
 
-        final langMap = map[language!];
+        final langMap = map[language ?? ''];
         if (langMap != null &&
             key != null &&
             key.isNotEmpty &&
