@@ -141,9 +141,7 @@ Iterable<LocalizationsTable> buildMap(SpreadsheetDecoder data) sync* {
         final String? language = (header[column] as String?)?.trim();
         String? value = rowData[column] as String?;
 
-        const iOSPlaceholders = false;
-
-        if (iOSPlaceholders) {
+        if (config.convertPlaceholders) {
           value = value?.replaceAll(RegExp('{{.*}}'), '%@');
           value = value?.replaceAll(RegExp('{.*}'), '%@');
         }
@@ -236,6 +234,9 @@ class Config {
   List<String>? sheets;
   String? languageForDefaults;
 
+  /// Will convert {{.*}} & {.*} palceholders into %@ format used by iOS
+  bool convertPlaceholders;
+
   Config({
     required this.nameMap,
     required this.skipLanguages,
@@ -248,6 +249,7 @@ class Config {
     this.headerColumns,
     this.sheets,
     this.languageForDefaults,
+    this.convertPlaceholders = false,
   });
 
   factory Config.fromJson(dynamic json) {
@@ -271,6 +273,7 @@ class Config {
       headerColumns: json['headerColumns'] as int? ?? 2,
       sheets: parseArray(json['sheets'] as List?),
       languageForDefaults: json['languageForDefaults'] as String?,
+      convertPlaceholders: json['convertPlaceholders'] as bool? ?? false,
     );
   }
 
